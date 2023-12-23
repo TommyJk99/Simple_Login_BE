@@ -7,6 +7,8 @@ import { User } from "./modules/user.js"
 import jwt from "jsonwebtoken"
 import checkJwt from "./middlewares/checkJwt.js"
 import list from "express-list-endpoints"
+import { checkPassword } from "./middlewares/checkPassword.js"
+import { checkMail } from "./middlewares/checkMail.js"
 
 const server = express()
 
@@ -15,16 +17,17 @@ server.use(cors())
 
 const port = process.env.PORT || 3030
 
-// this route is just for testing purposes
+// this route return a message if the server is up
 server.get("/health", (req, res) => {
    res.status(200).json({ message: "Server is up!" })
 })
 
 // this route add a new user to the database and return a jwt token
-server.post("/register", async (req, res, next) => {
+server.post("/register", checkPassword, checkMail, async (req, res, next) => {
    try {
-      const password = await bcrypt.hash(req.body.password, 12)
-      const newUser = await User.create({ ...req.body, password })
+      const newUser = new User(req.body)
+      newUser.password = await bcrypt.hash(newUser.password, 12)
+      await newUser.save()
 
       const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
          expiresIn: "1d",
@@ -47,7 +50,7 @@ server.post("/login", async (req, res, next) => {
       next(err)
    }
 })
-// this route return the user data
+// this route return the user data  if the jwt token is valid
 server.get("/me", checkJwt, (req, res) => {
    res.status(200).json({ user: req.user })
 })
