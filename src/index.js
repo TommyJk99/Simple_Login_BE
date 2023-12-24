@@ -23,39 +23,62 @@ server.get("/health", (req, res) => {
 })
 
 // this route add a new user to the database and return a jwt token
-server.post("/register", checkPassword, checkMail, async (req, res, next) => {
-   try {
-      const newUser = new User(req.body)
-      newUser.password = await bcrypt.hash(newUser.password, 12)
-      await newUser.save()
+// the pssw check, the email check and the hash of the password are done in the checkPassword and checkMail middlewares
+server
+   .post("/register", checkPassword, checkMail, async (req, res, next) => {
+      try {
+         const newUser = new User(req.body)
+         await newUser.save()
 
-      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
-         expiresIn: "1d",
-      })
+         const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
+            expiresIn: "4h",
+         })
 
-      res.status(201).json({ token })
-   } catch (err) {
-      next(err)
-   }
-})
-//this route login an existing user with the email and password and return a jwt token
-server.post("/login", async (req, res, next) => {
-   try {
-      const { email, password } = req.body
-      const user = User.findOne({ email })
-      if (!user) {
-         return res.status(404).json({ error: "User not found!" })
+         res.status(201).json({ token })
+      } catch (err) {
+         next(err)
       }
-   } catch (err) {
-      next(err)
-   }
-})
-// this route return the user data  if the jwt token is valid
-server.get("/me", checkJwt, (req, res) => {
-   res.status(200).json({ user: req.user })
-})
+   })
+   //this route login an existing user with the email and password and return a jwt token
+   .post("/login", async (req, res, next) => {
+      try {
+         const { email, password } = req.body
+         const user = User.findOne({ email })
+         if (!user) {
+            return res.status(404).json({ error: "User not found!" })
+         }
+      } catch (err) {
+         next(err)
+      }
+   })
+   // this route return the user data  if the jwt token is valid
+   .get("/me", checkJwt, (req, res) => {
+      res.status(200).json({ user: req.user })
+   })
+   //logout must invalidate the jwt token!
+   .post("/logout", (req, res) => {
+      res.status(200).json({ message: "Logout successful!" })
+   })
+   //this route modify the user data if the jwt token is valid, if the psw is modified,the new psw is controlled and hashed in the checkPassword middleware
+   //the email can't be modified
+   .post("/me", checkJwt, checkPassword, async (req, res, next) => {
+      try {
+         const { name, surname } = req.body
+         const { password } = req.hashedPassword //this hashed password is taken from the checkPassword middleware
+
+         const user = await User.findByIdAndUpdate(
+            req.user._id, //this id is taken from the jwt middleware
+            { name, surname, password },
+            { runValidators: true, new: true } //this option return the new user data
+         ).select("-password -_id -__v")
+         res.status(200).json({ user })
+      } catch (err) {
+         next(err)
+      }
+   })
 
 server.use(genericErrorHandler)
+
 mongoose.connect(process.env.MONGO_URI).then(() => {
    server.listen(port, () => {
       console.log(`🚀 Listening on port ${port}`)
