@@ -1,3 +1,15 @@
+/**
+ * @openapi
+ * paths:
+ *   /pet:
+ *     put:
+ *       tags:
+ *         - pet
+ *       summary: Update an existing pet
+ *       description: Update an existing pet by Id
+ *       operationId: updatePet
+ *
+ */
 import express from "express"
 import bcrypt from "bcrypt"
 import { User } from "../models/user.js"
@@ -8,13 +20,14 @@ import { checkMail } from "../middlewares/checkMail.js"
 
 const apiRouter = express.Router()
 
-// this route add a new user to the database and return a jwt token
-// the pssw check, the email check and the hash of the password are done in the checkPassword and checkMail middlewares
 apiRouter
    .post("/register", checkPassword, checkMail, async (req, res, next) => {
       try {
          //I use the spread operator to copy the req.body object and then I replace the password with the hashed password
-         const newUser = new User({ ...req.body, password: req.hashedPassword })
+         const newUser = new User({
+            ...req.body,
+            password: req.hashedPassword,
+         })
          await newUser.save()
 
          const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
@@ -58,15 +71,24 @@ apiRouter
    //the email can't be modified
    .post("/me", checkJwt, checkPassword, async (req, res, next) => {
       try {
-         const { name, surname } = req.body
          const { password } = req.hashedPassword //this hashed password is taken from the checkPassword middleware
-
-         const user = await User.findByIdAndUpdate(
-            req.user._id, //this id is taken from the jwt middleware
-            { name, surname, password },
-            { runValidators: true, new: true } //this option return the new user data
-         ).select("-password -_id -__v")
-         res.status(200).json({ user })
+         // if the password is modified I update the user data with the new password
+         if (password) {
+            const user = await User.findByIdAndUpdate(
+               req.user._id, //this id is taken from the jwt middleware
+               { ...req.body, password: password }, // I use the spread operator to copy the req.body object and then I replace the password with the hashed password
+               { runValidators: true, new: true }
+            ).select("-password -_id -__v")
+            return res.status(200).json({ user })
+         } else {
+            //if the password is not modified I update the user data without the password
+            const user = await User.findByIdAndUpdate(
+               req.user._id, //this id is taken from the jwt middleware
+               req.body,
+               { runValidators: true, new: true } //this option return the new user data
+            ).select("-password -_id -__v")
+            return res.status(200).json({ user })
+         }
       } catch (err) {
          next(err)
       }

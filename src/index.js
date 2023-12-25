@@ -8,18 +8,8 @@ import swaggerui from "swagger-ui-express"
 import apiRouter from "./routes/apiRouter.js"
 
 const server = express()
-
 server.use(express.json())
 server.use(cors())
-
-const port = process.env.PORT || 3030
-
-//here i want to define a swagger documentation for my api
-server.get("/health", (req, res) => {
-   res.status(200).json({ message: "Server is up!" })
-}) // this route return a message if the server is up
-
-server.use("/api", apiRouter)
 
 const options = {
    definition: {
@@ -30,22 +20,30 @@ const options = {
          description: "A simple Express JWT Authentication API",
          contact: {
             name: "Thomas",
-            email: "thomas@fmail.com",
+            email: "thomas@gmail.com",
          },
       },
       servers: [
          {
-            url: "http://localhost:3030",
+            url: "http://localhost:3030/",
          },
       ],
    },
-   apis: ["./src/routes/*.js, ./index.js"],
+   apis: ["./index.js"],
 }
 
-const spices = swaggerjsdoc(options)
-server.use("/docs", swaggerui.serve, swaggerui.setup(spices))
+const specs = swaggerjsdoc(options)
+server.use("/api-docs", swaggerui.serve, swaggerui.setup(specs))
+
+server.use("/api", apiRouter)
+
+server.get("/health", (req, res) => {
+   res.status(200).json({ message: "Server is up!" })
+}) // this route return a message if the server is up
 
 server.use(genericErrorHandler)
+
+const port = process.env.PORT || 3030
 
 mongoose.connect(process.env.MONGO_URI).then(() => {
    server.listen(port, () => {
